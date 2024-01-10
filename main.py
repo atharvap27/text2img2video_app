@@ -1,41 +1,49 @@
+from flask import Flask, request, jsonify
 from flask_ngrok import run_with_ngrok
-from flask import Flask, render_template, request
-
 import torch
-from diffusers import StableDiffusionPipeline
-
-import base64
+from PIL import Image
 from io import BytesIO
+import base64
+from diffusers import StableDiffusionImg2ImgPipeline, StableVideoDiffusionPipeline
+from diffusers.utils import export_to_video
 
-# Load model
-pipe = StableDiffusionPipeline.from_pretrained("runwayml/stable-diffusion-v1-5", revision="fp16", torch_dtype=torch.float16)
-pipe.to("cuda")
-
-# Start flask app and set to ngrok
 app = Flask(__name__)
-run_with_ngrok(app)
+run_with_ngrok(app)   # Start ngrok when app is run
 
-@app.route('/')
-def initial():
-  return render_template('index.html')
+@app.route('/generate-video', methods=['POST'])
+def generate_video():
+    data = request.json
+    prompt = data['prompt']
+    image_data = data['image']
+    image = Image.open(BytesIO(base64.b64decode(image_data)))
 
+    # Initialize and run img2img pipeline
+    pipe_img2img = StableDiffusionImg2ImgPipeline.from_pretrained(
+        "CompVis/stable-diffusion-v1-4",
+        variant="fp16",
+        torch_dtype=torch.float16,
+    ).to("cuda")
+    pipe_img2img.enable_attention_slicing()
+    
+    gen_images = pipe_img2img(prompt=prompt, num_images_per_prompt=1, image=image, strength=0.8, num_inference_steps=80, guidance_scale=15)
+    output_image = gen_images.images[0]
 
-@app.route('/submit-prompt', methods=['POST'])
-def generate_image():
-  prompt = request.form['prompt-input']
-  print(f"Generating an image of {prompt}")
+    # Initialize and run video pipeline
+    pipe_video = StableVideoDiffusionPipeline.from_pretrained(
+        "stabilityai/stable-video-diffusion-img2vid-xt",
+        torch_dtype=torch.float16,
+        variant="fp16"
+    )
+    pipe_video.enable_model_cpu_offload()
+    
+    generator = torch.manual_seed(42)
+    frames = pipe_video(output_image.resize((1024, 576)), decode_chunk_size=1, generator=generator).frames[0]
 
-  image = pipe(prompt).images[0]
-  print("Image generated! Converting image ...")
-  
-  buffered = BytesIO()
-  image.save(buffered, format="PNG")
-  img_str = base64.b64encode(buffered.getvalue())
-  img_str = "data:image/png;base64," + str(img_str)[2:-1]
+    video_path = "/path/to/save/generated.mp4"  # Update the path as needed
+    export_to_video(frames, video_path, fps=7)
 
-  print("Sending image ...")
-  return render_template('index.html', generated_image=img_str)
-
+    # Return video path or video as response (depending on your setup)
+    return jsonify({"video_path": video_path})
 
 if __name__ == '__main__':
     app.run()
