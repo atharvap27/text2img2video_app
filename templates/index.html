@@ -4,32 +4,65 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" type="text/css" href="{{ url_for('static',filename='styles.css') }}" />
-    <link rel="icon" type="image/x-icon" href="{{ url_for('static',filename='icon.png') }}" />
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='styles.css') }}" />
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='icon.png') }}" />
     <title>Stable Diffusion Video Generator</title>
 </head>
 <body>
     <h1>Stable Diffusion Video Generator</h1>
     <p>Generate videos with stable diffusion! Enter your prompt and upload an image, then hit "Create" to generate a video.</p>
-    <form action="/generate-video" method="post" id="submission-form" enctype="multipart/form-data">
+    
+    <!-- Form to submit prompt and image -->
+    <form id="submission-form" action="/generate-video" method="post" enctype="multipart/form-data">
         <ul>
             <li>
                 <label for="prompt">Prompt:</label>
-                <input type="text" id="prompt" name="prompt-input" required />
+                <input type="text" id="prompt" name="prompt" required />
             </li>
             <li>
                 <label for="image">Upload Image:</label>
-                <input type="file" id="image" name="image-input" accept="image/*" required />
+                <input type="file" id="image" name="image" accept="image/*" required />
             </li>
             <li class="button">
                 <button type="submit">Create</button>
             </li>
         </ul>
     </form>
-    <!-- Display the generated video or a placeholder -->
+
+    <!-- Video will be displayed here -->
     <video controls class="mainVideo" alt="Generated Video">
-        <source src="{{ generated_video|default('#', true) }}" type="video/mp4">
+        <source src="" type="video/mp4">
         Your browser does not support the video tag.
     </video>
+
+    <script>
+        // Script to handle the form submission without reloading the page
+        document.getElementById('submission-form').addEventListener('submit', function(event) {
+            event.preventDefault();
+            
+            // Create FormData object from the form
+            var formData = new FormData(this);
+
+            // Make an AJAX request to the server
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', '/generate-video', true);
+            xhr.responseType = 'blob';
+
+            xhr.onload = function(e) {
+                if (this.status == 200) {
+                    // Get the response (video blob)
+                    var videoBlob = this.response;
+                    var url = URL.createObjectURL(videoBlob);
+
+                    // Update the video source and reload it
+                    var videoElement = document.querySelector('.mainVideo source');
+                    videoElement.setAttribute('src', url);
+                    videoElement.parentElement.load();
+                }
+            };
+
+            xhr.send(formData);
+        });
+    </script>
 </body>
 </html>
