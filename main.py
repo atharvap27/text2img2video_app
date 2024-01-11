@@ -1,5 +1,4 @@
 from flask import Flask, request, jsonify
-from flask_ngrok import run_with_ngrok
 import torch
 from PIL import Image
 from io import BytesIO
@@ -8,7 +7,6 @@ from diffusers import StableDiffusionImg2ImgPipeline, StableVideoDiffusionPipeli
 from diffusers.utils import export_to_video
 
 app = Flask(__name__)
-run_with_ngrok(app)   # Start ngrok when app is run
 
 @app.route('/generate-video', methods=['POST'])
 def generate_video():
@@ -46,4 +44,4 @@ def generate_video():
     return jsonify({"video_path": video_path})
 
 if __name__ == '__main__':
-    app.run()
+    app.run(port=5000)
