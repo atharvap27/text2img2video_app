@@ -1,19 +1,21 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template, Response
+import io
 import torch
 from PIL import Image
-from io import BytesIO
-import base64
 from diffusers import StableDiffusionImg2ImgPipeline, StableVideoDiffusionPipeline
 from diffusers.utils import export_to_video
 
 app = Flask(__name__)
 
+@app.route('/')
+def index():
+    return render_template('index.html')
+
 @app.route('/generate-video', methods=['POST'])
 def generate_video():
-    data = request.json
-    prompt = data['prompt']
-    image_data = data['image']
-    image = Image.open(BytesIO(base64.b64decode(image_data)))
+    prompt = request.form['prompt']
+    image_file = request.files['image']
+    image = Image.open(image_file.stream)
 
     # Initialize and run img2img pipeline
     pipe_img2img = StableDiffusionImg2ImgPipeline.from_pretrained(
@@ -37,11 +39,11 @@ def generate_video():
     generator = torch.manual_seed(42)
     frames = pipe_video(output_image.resize((1024, 576)), decode_chunk_size=1, generator=generator).frames[0]
 
-    video_path = "/path/to/save/generated.mp4"  # Update the path as needed
-    export_to_video(frames, video_path, fps=7)
+    video_byte_stream = io.BytesIO()
+    export_to_video(frames, video_byte_stream, fps=7)
+    video_byte_stream.seek(0)
 
-    # Return video path or video as response (depending on your setup)
-    return jsonify({"video_path": video_path})
+    return Response(video_byte_stream, mimetype="video/mp4")
 
 if __name__ == '__main__':
     app.run()
